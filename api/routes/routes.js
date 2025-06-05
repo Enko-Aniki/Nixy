@@ -1,6 +1,7 @@
 import express from "express"
 const routes = express.Router();
 import upload from '../middlewares/upload.js';
+import { deletarPostagem, atualizarPostagem } from "../controllers/PostController.js";
 
 routes.post("/upload-foto", upload.single("foto"), (req, res) => {
   console.log("Arquivo recebido:", req.file);
@@ -31,6 +32,23 @@ routes.get("/esqueci-senha", (req, res) => {
 routes.post('/resetarSenha/:token', redefinirSenha);
 
 
+routes.delete("/post/:id", deletarPostagem);
+routes.put("/post/:id", atualizarPostagem);
 
+routes.put("/post/:id", atualizarPostagem);
+routes.delete("/post/:id", deletarPostagem);
+
+import { 
+    criarComentario, 
+    getComentariosPorPost, 
+    atualizarComentario, 
+    deletarComentario 
+} from "../controllers/comentarioController.js";
+
+// Rotas para comentários
+routes.post("/comentario", criarComentario);
+routes.get("/post/:id/comentarios", getComentariosPorPost);
+routes.put("/comentario/:id", atualizarComentario);
+routes.delete("/comentario/:id", deletarComentario);
   
 export default routes;

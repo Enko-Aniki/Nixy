@@ -13,6 +13,7 @@ import multerUpload from "./middlewares/upload.js";
 import postRoutes from "./routes/postsRoutes.js";
 import comunidadeRoutes from './routes/comunidade.js';
 import uploadMiddleware from "./middlewares/uploadMiddleware.js";
+import { atualizarPostagem } from './controllers/PostController.js';
 
 
 
@@ -50,7 +51,7 @@ app.set('view engine', 'ejs');
 app.set('views', './view');
 app.use('/pomodoro', pomodoroRoutes);
 
-
+app.put("/post/:id", atualizarPostagem);
 
 app.use((req, res, next) => {
   res.locals.menuItems = menuItems;
@@ -419,6 +420,7 @@ app.get("/post/:id", async (req, res) => {
   try {
     const postId = req.params.id;
     
+    // Busca o post
     const [post] = await db.query(`
       SELECT 
         p.ID_POST_T05 as id,
@@ -434,6 +436,21 @@ app.get("/post/:id", async (req, res) => {
       FROM post_t05 p
       LEFT JOIN usuario_t01 u ON p.ID_USUARIO_T01 = u.ID_USUARIO_T01
       WHERE p.ID_POST_T05 = ?
+    `, [postId]);
+
+    // Busca os comentários do post
+    const [comentarios] = await db.query(`
+      SELECT 
+        c.ID_COMENTARIO_T06 as id,
+        c.CONTEUDO_COMENTARIO_T06 as conteudo,
+        c.DATA_CRIACAO_COMENTARIO_T06 as data,
+        u.ID_USUARIO_T01 as autor_id,
+        u.NOME_USUARIO_T01 as autor,
+        u.FOTO_PERFIL_URL as autor_foto
+      FROM COMENTARIO_T06 c
+      JOIN USUARIO_T01 u ON c.ID_USUARIO_T01 = u.ID_USUARIO_T01
+      WHERE c.ID_POST_T05 = ?
+      ORDER BY c.DATA_CRIACAO_COMENTARIO_T06 ASC
     `, [postId]);
 
     const [comunidades] = await db.query(`
@@ -452,6 +469,7 @@ app.get("/post/:id", async (req, res) => {
       return res.render("post", {
         user: req.session.user,
         post: null,
+        comentarios: [],
         comunidades,
         mostrarMenu: true,
         error: 'Post não encontrado'
@@ -461,9 +479,10 @@ app.get("/post/:id", async (req, res) => {
     res.render("post", {
       user: req.session.user,
       post: post[0],
+      comentarios,
       comunidades,
       mostrarMenu: true,
-      error: null // Garante que a variável error existe mesmo quando não há erro
+      error: null
     });
     
   } catch (err) {
@@ -471,6 +490,7 @@ app.get("/post/:id", async (req, res) => {
     res.render("post", {
       user: req.session.user,
       post: null,
+      comentarios: [],
       comunidades: [],
       mostrarMenu: true,
       error: 'Erro ao carregar o post'

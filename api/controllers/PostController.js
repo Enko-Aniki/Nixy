@@ -91,52 +91,108 @@ export const getPostagemPorId = (req, res) => {
         });
 };
 // Função para atualizar uma postagem
-export const atualizarPostagem = (req, res) => {
+export const atualizarPostagem = async (req, res) => {
+      console.log('Corpo da requisição:', req.body); 
+    console.log('ID do post:', req.params.id); 
     const id = req.params.id;
     const { TITULO_POST_T05, CONTEUDO_POST_T05, CATEGORIA_POST_T05 } = req.body;
+    const userId = req.session.user?.ID_USUARIO_T01;
+
+    if (!userId) {
+        return res.status(401).json({ erro: 'Usuário não autenticado' });
+    }
 
     if (!TITULO_POST_T05 || !CONTEUDO_POST_T05) {
         return res.status(400).json({ erro: 'Campos obrigatórios não preenchidos' });
     }
 
-    const query = `
-        UPDATE POST_T05
-        SET TITULO_POST_T05 = ?, CONTEUDO_POST_T05 = ?, CATEGORIA_POST_T05 = ?
-        WHERE ID_POST_T05 = ?
-    `;
+    try {
+        // Verifica se o post existe e se o usuário é o autor
+        const [checkResult] = await db.query('SELECT ID_USUARIO_T01 FROM POST_T05 WHERE ID_POST_T05 = ?', [id]);
+        
+        if (checkResult.length === 0) {
+            return res.status(404).json({ erro: 'Postagem não encontrada' });
+        }
+        
+        const postAuthorId = checkResult[0].ID_USUARIO_T01;
+        
+        if (postAuthorId !== userId) {
+            return res.status(403).json({ erro: 'Você não tem permissão para editar este post' });
+        }
 
-    db.query(query, [TITULO_POST_T05, CONTEUDO_POST_T05, CATEGORIA_POST_T05 || null, id])
-        .then(result => {
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ erro: 'Postagem não encontrada' });
-            }
-            res.status(200).json({ mensagem: 'Postagem atualizada com sucesso' });
-        })
-        .catch(err => {
-            console.error('Erro ao atualizar postagem:', err);
-            return res.status(500).json({ erro: 'Erro interno ao atualizar postagem' });
+        // Atualiza o post
+        const query = `
+            UPDATE POST_T05
+            SET TITULO_POST_T05 = ?, 
+                CONTEUDO_POST_T05 = ?, 
+                CATEGORIA_POST_T05 = ?,
+                DATA_ATUALIZACAO_POST_T05 = NOW()  # Adiciona data de atualização
+            WHERE ID_POST_T05 = ?
+        `;
+
+        const [result] = await db.query(query, [
+            TITULO_POST_T05, 
+            CONTEUDO_POST_T05, 
+            CATEGORIA_POST_T05 || null, 
+            id
+        ]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ erro: 'Postagem não encontrada' });
+        }
+
+        // Retorna os dados atualizados
+        const [updatedPost] = await db.query('SELECT * FROM POST_T05 WHERE ID_POST_T05 = ?', [id]);
+        
+        res.status(200).json({ 
+            mensagem: 'Postagem atualizada com sucesso',
+            post: updatedPost[0]
         });
-};
 
+    } catch (err) {
+        console.error('Erro ao atualizar postagem:', err);
+        return res.status(500).json({ erro: 'Erro interno ao atualizar postagem' });
+    }
+};
 
 
 // Função para deletar uma postagem
-export const deletarPostagem = (req, res) => {
+export const deletarPostagem = async (req, res) => {
     const id = req.params.id;
-    const query = 'DELETE FROM POST_T05 WHERE ID_POST_T05 = ?';
+    const userId = req.session.user?.ID_USUARIO_T01;
 
-    db.query(query, [id])
-        .then(result => {
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ erro: 'Postagem não encontrada' });
-            }
-            res.status(200).json({ mensagem: 'Postagem deletada com sucesso' });
-        })
-        .catch(err => {
-            console.error('Erro ao deletar postagem:', err);
-            return res.status(500).json({ erro: 'Erro interno ao deletar postagem' });
-        });
+    if (!userId) {
+        return res.status(401).json({ erro: 'Usuário não autenticado' });
+    }
+
+    try {
+        // Primeiro verifica se o post existe e se o usuário é o autor
+        const [checkResult] = await db.query('SELECT ID_USUARIO_T01 FROM POST_T05 WHERE ID_POST_T05 = ?', [id]);
+        
+        if (checkResult.length === 0) {
+            return res.status(404).json({ erro: 'Postagem não encontrada' });
+        }
+        
+        const postAuthorId = checkResult[0].ID_USUARIO_T01;
+        
+        if (postAuthorId !== userId) {
+            return res.status(403).json({ erro: 'Você não tem permissão para deletar este post' });
+        }
+        
+        // Se for o autor, procede com a deleção
+        const [result] = await db.query('DELETE FROM POST_T05 WHERE ID_POST_T05 = ?', [id]);
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ erro: 'Postagem não encontrada' });
+        }
+        
+        res.status(200).json({ mensagem: 'Postagem deletada com sucesso' });
+    } catch (err) {
+        console.error('Erro ao deletar postagem:', err);
+        return res.status(500).json({ erro: 'Erro interno ao deletar postagem' });
+    }
 };
+
 
 // Função para adicionar ou atualizar avaliação (positiva ou negativa)
 export const adicionarOuAtualizarAvaliacao = (req, res) => {

@@ -99,25 +99,67 @@
                             </span>
                         </button>
 
+                        <!-- para editar e excluir  -->
+
+                        <% if (user && user.ID_USUARIO_T01===post.autor_id) { %>
+                            <button class="btn-editar-post" onclick="abrirModalEdicao(<%= post.id %>)">
+                                <img class="editarBtn" src="/imagens/lapis.png" alt="Editar post">
+                            </button>
+                            <button class="btn-deletar-post" onclick="confirmarDelecaoPost(<%= post.id %>)">
+                                <img class="deletarBtn" src="/imagens/lixo.png" alt="Deletar post">
+                            </button>
+                            <% } %>
+
                     </div>
 
                     <!-- Comentários -->
+                    <!-- Comentários -->
                     <div class="secaoComentarios">
+                        <h3>Comentários</h3>
 
-                        <div class="comentarioBox" onclick="expandirComentario()">
+                        <!-- Lista de comentários -->
+                        <div id="listaComentarios">
+                            <% if (comentarios && comentarios.length> 0) { %>
+                                <% comentarios.forEach(comentario=> { %>
+                                    <div class="comentario" data-comentario-id="<%= comentario.id %>">
+                                        <div class="comentarioAutor">
+                                            <div class="avatar"
+                                                style="background-image: url('<%= comentario.autor_foto || '/img/default.png' %>')">
+                                            </div>
+                                            <span class="nomeAutor">
+                                                <%= comentario.autor %>
+                                            </span>
+                                            <span class="dataComentario">
+                                                <%= new Date(comentario.data).toLocaleString('pt-BR') %>
+                                            </span>
+                                        </div>
+                                        <div class="comentarioConteudo">
+                                            <%= comentario.conteudo %>
+                                        </div>
+
+                                        <% if (user && user.ID_USUARIO_T01===comentario.autor_id) { %>
+                                            <div class="comentarioAcoes">
+                                                <button class="btn-editar-comentario"
+                                                    onclick="editarComentario(<%= comentario.id %>)">Editar</button>
+                                                <button class="btn-deletar-comentario"
+                                                    onclick="deletarComentario(<%= comentario.id %>)">Deletar</button>
+                                            </div>
+                                            <% } %>
+                                    </div>
+                                    <% }) %>
+                                        <% } else { %>
+                                            <p>Nenhum comentário ainda. Seja o primeiro a comentar!</p>
+                                            <% } %>
+                        </div>
+
+                        <!-- Formulário para novo comentário -->
+                        <div class="comentarioBox">
                             <div class="comentarioInputArea">
-                                <textarea placeholder="Add a comment..." onfocus="expandirComentario()"
-                                    onblur="verificarFechamento(this)">
-                                </textarea>
-                            </div>
-                            <div class="comentarioExtras">
-                                <button>🖼️</button>
-                                <button>GIF</button>
-                                <button>Aa</button>
+                                <textarea id="novoComentario" placeholder="Adicione um comentário..."></textarea>
                             </div>
                             <div class="comentarioAcoesDireita">
-                                <button class="cancelarBtn" onclick="cancelarComentario()">Cancel</button>
-                                <button class="comentarBtn">Comment</button>
+                                <button class="cancelarBtn" onclick="cancelarComentario()">Cancelar</button>
+                                <button class="comentarBtn" onclick="enviarComentario(<%= post.id %>)">Comentar</button>
                             </div>
                         </div>
                     </div>
@@ -162,7 +204,13 @@
             function expandirComentario() {
                 const box = document.querySelector('.comentarioBox');
                 box.classList.add('ativo');
+                document.getElementById('novoComentario').focus();
             }
+
+      
+            document.getElementById('novoComentario').addEventListener('focus', expandirComentario);
+            document.getElementById('novoComentario').addEventListener('click', expandirComentario);
+
 
             function cancelarComentario() {
                 const box = document.querySelector('.comentarioBox');
@@ -180,5 +228,331 @@
                 }, 100);
             }
 
+
+            // função para deletar
+
+            async function confirmarDelecaoPost(postId) {
+                const confirmacao = confirm('Tem certeza que deseja deletar este post? Esta ação não pode ser desfeita.');
+
+                if (confirmacao) {
+                    try {
+                        const response = await fetch(`/post/${postId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                // Adicione o token CSRF se estiver usando
+                                // 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+                            },
+                            credentials: 'include' // Para enviar cookies de sessão
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.erro || 'Erro ao deletar post');
+                        }
+
+                        const data = await response.json();
+                        alert(data.mensagem || 'Post deletado com sucesso!');
+                        window.location.href = '/Forum'; // Redireciona para o fórum
+
+                    } catch (error) {
+                        console.error('Erro:', error);
+                        alert(error.message || 'Erro ao conectar com o servidor');
+                    }
+                }
+            }
+
+            // Função para abrir o modal de edição
+            function abrirModalEdicao(postId) {
+                const modal = document.getElementById('modalEdicao');
+                const postIdInput = document.getElementById('postIdEdicao');
+                const tituloInput = document.getElementById('tituloEdicao');
+                const conteudoInput = document.getElementById('conteudoEdicao');
+                const forumSelect = document.getElementById('forumEdicao');
+
+                // Preenche os campos com os dados atuais do post
+                postIdInput.value = postId;
+                tituloInput.value = document.querySelector('.tituloPost').textContent.trim();
+                conteudoInput.value = document.querySelector('.conteudoPost').textContent.trim();
+
+                // Define o fórum selecionado, se houver
+                const forumAtual = document.querySelector('.forum-info span').textContent.trim();
+                if (forumAtual && forumAtual !== 'Geral') {
+                    forumSelect.value = forumAtual;
+                } else {
+                    forumSelect.value = '';
+                }
+
+                modal.style.display = 'block';
+            }
+
+            // Função para fechar o modal
+            function fecharModalEdicao() {
+                document.getElementById('modalEdicao').style.display = 'none';
+            }
+
+            // Evento de submit do formulário de edição
+            ocument.getElementById('formEdicaoPost').addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                const postId = document.getElementById('postIdEdicao').value;
+                const titulo = document.getElementById('tituloEdicao').value;
+                const conteudo = document.getElementById('conteudoEdicao').value;
+                const forum = document.getElementById('forumEdicao').value;
+                const userId = '<%= user.ID_USUARIO_T01 %>';
+
+                try {
+                    const response = await fetch(`/post/${postId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            TITULO_POST_T05: titulo,
+                            CONTEUDO_POST_T05: conteudo,
+                            CATEGORIA_POST_T05: forum || null,
+                            ID_USUARIO_T01: userId
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.erro || 'Erro ao atualizar post');
+                    }
+
+                    const data = await response.json();
+                    alert('Post atualizado com sucesso!');
+                    window.location.reload();
+
+                } catch (error) {
+                    console.error('Erro:', error);
+                    alert(error.message || 'Erro ao conectar com o servidor');
+                }
+            });
+
+            // Fecha o modal se clicar fora dele
+            window.onclick = function (event) {
+                const modal = document.getElementById('modalEdicao');
+                if (event.target === modal) {
+                    fecharModalEdicao();
+
+
+                }
+            }
+
+
+
+            // Funções para manipulação de comentários
+            async function enviarComentario(postId) {
+                const conteudo = document.getElementById('novoComentario').value.trim();
+                const userId = '<%= user.ID_USUARIO_T01 %>';
+
+                if (!conteudo) {
+                    alert('Por favor, digite um comentário');
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/comentario', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            ID_POST_T05: postId,
+                            ID_USUARIO_T01: userId,
+                            CONTEUDO_COMENTARIO_T06: conteudo
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.erro || 'Erro ao enviar comentário');
+                    }
+
+                    // Recarrega os comentários
+                    await carregarComentarios(postId);
+                    document.getElementById('novoComentario').value = '';
+
+                } catch (error) {
+                    console.error('Erro:', error);
+                    alert(error.message || 'Erro ao enviar comentário');
+                }
+            }
+
+            async function carregarComentarios(postId) {
+                try {
+                    const response = await fetch(`/post/${postId}/comentarios`);
+
+                    if (!response.ok) {
+                        throw new Error('Erro ao carregar comentários');
+                    }
+
+                    const comentarios = await response.json();
+                    const listaComentarios = document.getElementById('listaComentarios');
+
+                    // Atualiza a lista de comentários
+                    listaComentarios.innerHTML = comentarios.map(comentario => `
+            <div class="comentario" data-comentario-id="${comentario.id}">
+                <div class="comentarioAutor">
+                    <div class="avatar" 
+                         style="background-image: url('${comentario.autor_foto || '/img/default.png'}')">
+                    </div>
+                    <span class="nomeAutor">${comentario.autor}</span>
+                    <span class="dataComentario">${new Date(comentario.data).toLocaleString('pt-BR')}</span>
+                </div>
+                <div class="comentarioConteudo">${comentario.conteudo}</div>
+                
+                ${comentario.autor_id == '<%= user.ID_USUARIO_T01 %>' ? `
+                    <div class="comentarioAcoes">
+                        <button class="btn-editar-comentario" onclick="editarComentario(${comentario.id})">Editar</button>
+                        <button class="btn-deletar-comentario" onclick="deletarComentario(${comentario.id})">Deletar</button>
+                    </div>
+                ` : ''}
+            </div>
+        `).join('');
+
+                } catch (error) {
+                    console.error('Erro ao carregar comentários:', error);
+                }
+            }
+
+            async function editarComentario(comentarioId) {
+                const comentarioDiv = document.querySelector(`.comentario[data-comentario-id="${comentarioId}"]`);
+                const conteudoAtual = comentarioDiv.querySelector('.comentarioConteudo').textContent;
+
+                // Cria um textarea para edição
+                comentarioDiv.querySelector('.comentarioConteudo').innerHTML = `
+        <textarea id="editarComentario-${comentarioId}" style="width:100%; min-height:80px;">${conteudoAtual}</textarea>
+        <div>
+            <button onclick="salvarEdicaoComentario(${comentarioId})">Salvar</button>
+            <button onclick="cancelarEdicaoComentario(${comentarioId}, '${conteudoAtual}')">Cancelar</button>
+        </div>
+    `;
+            }
+
+            async function salvarEdicaoComentario(comentarioId) {
+                const novoConteudo = document.getElementById(`editarComentario-${comentarioId}`).value.trim();
+                const userId = '<%= user.ID_USUARIO_T01 %>';
+
+                if (!novoConteudo) {
+                    alert('O comentário não pode estar vazio');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/comentario/${comentarioId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            CONTEUDO_COMENTARIO_T06: novoConteudo,
+                            ID_USUARIO_T01: userId
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.erro || 'Erro ao atualizar comentário');
+                    }
+
+                    // Recarrega os comentários
+                    const postId = '<%= post.id %>';
+                    await carregarComentarios(postId);
+
+                } catch (error) {
+                    console.error('Erro:', error);
+                    alert(error.message || 'Erro ao atualizar comentário');
+                }
+            }
+
+            function cancelarEdicaoComentario(comentarioId, conteudoOriginal) {
+                const comentarioDiv = document.querySelector(`.comentario[data-comentario-id="${comentarioId}"]`);
+                comentarioDiv.querySelector('.comentarioConteudo').textContent = conteudoOriginal;
+            }
+
+            async function deletarComentario(comentarioId) {
+                if (!confirm('Tem certeza que deseja deletar este comentário?')) {
+                    return;
+                }
+
+                const userId = '<%= user.ID_USUARIO_T01 %>';
+
+                try {
+                    const response = await fetch(`/comentario/${comentarioId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            ID_USUARIO_T01: userId
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.erro || 'Erro ao deletar comentário');
+                    }
+
+                    // Recarrega os comentários
+                    const postId = '<%= post.id %>';
+                    await carregarComentarios(postId);
+
+                } catch (error) {
+                    console.error('Erro:', error);
+                    alert(error.message || 'Erro ao deletar comentário');
+                }
+            }
+
+            // Carrega os comentários quando a página é carregada
+            document.addEventListener('DOMContentLoaded', () => {
+                const postId = '<%= post.id %>';
+                if (postId) {
+                    carregarComentarios(postId);
+                }
+            });
+
         </script>
+
+        <div id="modalEdicao" class="modalPost">
+            <div class="modal-conteudo-post">
+                <span class="fechar-modal-post" onclick="fecharModalEdicao()">&times;</span>
+                <h2>Editar Postagem</h2>
+                <form id="formEdicaoPost">
+                    <input type="hidden" id="postIdEdicao" value="">
+
+                    <div class="form-group">
+                        <label for="tituloEdicao">Título:</label>
+                        <input type="text" id="tituloEdicao" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="conteudoEdicao">Conteúdo:</label>
+                        <textarea id="conteudoEdicao" rows="10" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="forumEdicao">Fórum:</label>
+                        <select id="forumEdicao">
+                            <option value="">Geral</option>
+                            <% if (comunidades && comunidades.length> 0) { %>
+                                <% comunidades.forEach(com=> { %>
+                                    <option value="<%= com.NOME_COMUNIDADE_T14 %>">c/<%= com.NOME_COMUNIDADE_T14 %>
+                                    </option>
+                                    <% }) %>
+                                        <% } %>
+                        </select>
+                    </div>
+
+                    <div class="acoes-modal">
+                        <button type="button" class="btn-cancelar" onclick="fecharModalEdicao()">Cancelar</button>
+                        <button type="submit" class="btn-salvar">Salvar Alterações</button>
+
+
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
